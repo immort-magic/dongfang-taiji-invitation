@@ -357,7 +357,7 @@ html{scroll-behavior:smooth}
       <button class="btn ghost" onclick="downloadICS()">加入日历</button>
     </div>
     <div class="interaction-actions">
-      <button id="rsvpBtn" class="btn" type="button">确认赴约</button>
+      <button id="rsvpBtn" class="btn" type="button">登记赴约</button>
       <button id="blessingBtn" class="btn ghost" type="button">送上祝福</button>
     </div>
     <div id="rsvpState" class="rsvp-state" aria-live="polite"></div>
@@ -380,10 +380,10 @@ html{scroll-behavior:smooth}
 <div id="rsvpModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="rsvpTitle">
   <div class="modal-card">
     <div class="modal-mark">☯</div>
-    <h3 id="rsvpTitle">是否确认赴约？</h3>
-    <p>开业时间：2026年10月1日 上午9:58<br>期待与您共同见证东方太极养生堂启新。</p>
+    <h3 id="rsvpTitle">登记赴约信息</h3>
+    <p>将打开飞书赴约登记表，姓名、称谓和赴约状态已自动填写。<br>在表单中点击“提交”后，邀请方即可查看记录。</p>
     <div class="modal-actions">
-      <button id="rsvpYes" class="yes" type="button">确认赴约</button>
+      <button id="rsvpYes" class="yes" type="button">打开登记表</button>
       <button id="rsvpLater" class="no" type="button">稍后决定</button>
     </div>
   </div>
@@ -444,13 +444,28 @@ function tick(){
 const params = new URLSearchParams(location.search);
 const guest = params.get("guest");
 const suffix = params.get("suffix");
+const inviteId = params.get("invite");
 if(guest){
   const el=document.getElementById("guestName");
   if(el) el.textContent=guest;
 }
-if(suffix){
+if(params.has("suffix")){
   const el=document.querySelector('[data-key="guestSuffix"]');
-  if(el) el.textContent=suffix;
+  if(el) el.textContent=suffix||"";
+}
+
+function buildRsvpFormUrl(){
+  const url=new URL("https://icndkdfnybk8.feishu.cn/share/base/form/shrcnuZjaUyRbygogaQkUORCfHd");
+  const currentGuest=guest||document.getElementById("guestName")?.innerText.trim()||"尊敬的贵宾";
+  const currentSuffix=params.has("suffix") ? (suffix||"") : (document.querySelector('[data-key="guestSuffix"]')?.innerText.trim()||"");
+  const formSuffix=["先生","女士","老师","不显示"].includes(currentSuffix) ? currentSuffix : "不显示";
+  const currentInviteId=inviteId||("PUBLIC-"+Date.now().toString(36).toUpperCase());
+  url.searchParams.set("prefill_被邀请人姓名",currentGuest);
+  url.searchParams.set("prefill_称谓",formSuffix);
+  url.searchParams.set("prefill_赴约状态","已赴约");
+  url.searchParams.set("prefill_邀请编号",currentInviteId);
+  url.searchParams.set("hide_邀请编号","1");
+  return url.href;
 }
 tick(); setInterval(tick,1000);
 // ===== 互动增强 =====
@@ -527,12 +542,11 @@ tick(); setInterval(tick,1000);
   modal?.addEventListener("click",(e)=>{ if(e.target===modal) modal.classList.remove("show"); });
 
   rsvpYes?.addEventListener("click",()=>{
-    try{ localStorage.setItem("dongfang-taiji-rsvp","yes"); }catch(e){}
     modal?.classList.remove("show");
-    if(rsvpState) rsvpState.textContent="已记录：您将赴约，恭候莅临。";
-    if(rsvpBtn) rsvpBtn.textContent="已确认赴约";
+    if(rsvpState) rsvpState.textContent="请在飞书表单中点击提交，记录才会生效。";
     const r=rsvpBtn?.getBoundingClientRect();
     if(r) burst(r.left+r.width/2,r.top+r.height/2,20);
+    setTimeout(()=>{ location.href=buildRsvpFormUrl(); },260);
   });
 
   blessingBtn?.addEventListener("click",()=>{
@@ -543,13 +557,6 @@ tick(); setInterval(tick,1000);
     burst(r.left+r.width/2,r.top+r.height/2,14);
     setTimeout(()=>{ blessingBtn.textContent="再送一句祝福"; },2200);
   });
-
-  try{
-    if(localStorage.getItem("dongfang-taiji-rsvp")==="yes"){
-      if(rsvpState) rsvpState.textContent="已记录：您将赴约，恭候莅临。";
-      if(rsvpBtn) rsvpBtn.textContent="已确认赴约";
-    }
-  }catch(e){}
 
   let lastSecond="";
   const secondEl=document.getElementById("s");
