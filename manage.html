@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>东方太极养生堂｜专属邀请链接生成器</title>
+<style>
+:root{--red:#8f120d;--deep:#4d0806;--gold:#d6a64c;--cream:#fff8e8;--ink:#44271d}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(145deg,#700b08,#3f0605);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh}
+.page{width:min(100%,900px);margin:auto;padding:28px 16px 60px}
+.header{text-align:center;color:#ffe2a0;margin-bottom:22px}
+.header h1{font-family:"Songti SC","STSong",serif;font-size:30px;letter-spacing:.08em;margin:8px 0}
+.header p{margin:0;color:#ddb96f;font-size:14px}
+.panel{background:var(--cream);border:1px solid rgba(255,220,145,.65);border-radius:20px;padding:22px;box-shadow:0 18px 50px rgba(0,0,0,.25);margin-bottom:16px}
+.panel h2{margin:0 0 16px;color:var(--red);font-size:20px}
+.grid{display:grid;grid-template-columns:1fr 180px;gap:14px}
+label{display:block;font-size:13px;color:#7c604a;margin-bottom:7px}
+input,textarea,select{width:100%;border:1px solid #d7bf93;border-radius:11px;background:#fffdf7;padding:12px 13px;font:15px/1.5 inherit;color:#382219;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(214,166,76,.15)}
+textarea{min-height:150px;resize:vertical}
+.hint{font-size:12px;color:#8b725c;line-height:1.7;margin-top:7px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+button{border:0;border-radius:999px;padding:11px 18px;font:600 14px/1 inherit;cursor:pointer;background:var(--red);color:#fff1c5}
+button.secondary{background:#e7d3aa;color:#59372a}
+button.ghost{background:transparent;color:var(--red);border:1px solid #c99b4b}
+.summary{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;color:#765744;font-size:14px}
+.list{display:grid;gap:10px}
+.empty{text-align:center;padding:28px 10px;color:#9a816d;border:1px dashed #d6c5a6;border-radius:14px}
+.item{border:1px solid #dfcba5;border-radius:14px;padding:13px;background:#fffdf8;display:grid;grid-template-columns:150px 1fr auto;gap:12px;align-items:center}
+.person{font-weight:700;color:#762017}.person small{display:block;margin-top:4px;color:#9b806b;font-weight:400}
+.url{font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;color:#6d5747;background:#f7eedb;border-radius:9px;padding:8px}
+.copy{padding:9px 13px;white-space:nowrap}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,12px);background:rgba(32,20,15,.92);color:#fff;padding:10px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:.2s;font-size:13px}.toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:680px){.grid{grid-template-columns:1fr}.item{grid-template-columns:1fr}.copy{justify-self:start}.panel{padding:17px}.header h1{font-size:25px}}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="header">
+    <div>东方太极养生堂</div>
+    <h1>专属邀请链接生成器</h1>
+    <p>名单只保存在当前浏览器，不会公开显示在邀请函中</p>
+  </header>
+
+  <section class="panel">
+    <h2>生成专属链接</h2>
+    <div class="grid">
+      <div>
+        <label for="names">被邀请人名单</label>
+        <textarea id="names" placeholder="每行一人，例如：&#10;张三&#10;李女士，&#10;王老师,老师"></textarea>
+        <div class="hint">每行可只写姓名，统一使用右侧称谓；也可写成“姓名，称谓”单独指定。称谓留空时不显示后缀。
+        </div>
+      </div>
+      <div>
+        <label for="suffix">默认称谓</label>
+        <select id="suffix">
+          <option value="先生 / 女士">先生 / 女士</option>
+          <option value="先生">先生</option>
+          <option value="女士">女士</option>
+          <option value="老师">老师</option>
+          <option value="">不显示称谓</option>
+        </select>
+        <label for="base" style="margin-top:14px">邀请函网址</label>
+        <input id="base" value="https://immort-magic.github.io/dongfang-taiji-invitation/">
+      </div>
+    </div>
+    <div class="actions">
+      <button id="generate" type="button">生成邀请链接</button>
+      <button id="copyAll" class="secondary" type="button">复制全部</button>
+      <button id="download" class="secondary" type="button">导出 CSV</button>
+      <button id="clear" class="ghost" type="button">清空本机名单</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="summary"><strong>已生成的邀请</strong><span id="count">0 人</span></div>
+    <div id="list" class="list"><div class="empty">请先输入姓名并生成链接</div></div>
+  </section>
+</main>
+<div id="toast" class="toast">已复制</div>
+<script>
+const storageKey="dongfang-taiji-invite-manager-v1";
+const namesEl=document.getElementById("names");
+const suffixEl=document.getElementById("suffix");
+const baseEl=document.getElementById("base");
+const listEl=document.getElementById("list");
+const countEl=document.getElementById("count");
+let records=[];
+
+function notify(message){
+  const el=document.getElementById("toast");
+  el.textContent=message; el.classList.add("show");
+  clearTimeout(window.__toastTimer); window.__toastTimer=setTimeout(()=>el.classList.remove("show"),1800);
+}
+
+function makeId(index){
+  return "DF"+Date.now().toString(36).toUpperCase()+String(index+1).padStart(3,"0");
+}
+
+function parseNames(){
+  const fallback=suffixEl.value;
+  return namesEl.value.split(/\n+/).map(line=>line.trim()).filter(Boolean).map((line,index)=>{
+    const parts=line.split(/[,，]/);
+    const name=(parts.shift()||"").trim();
+    const suffix=parts.length ? parts.join("").trim() : fallback;
+    return {name,suffix,id:makeId(index)};
+  }).filter(item=>item.name);
+}
+
+function buildUrl(record){
+  const url=new URL(baseEl.value.trim()||location.origin+location.pathname.replace(/manage\.html$/,"") );
+  url.searchParams.set("guest",record.name);
+  url.searchParams.set("suffix",record.suffix);
+  url.searchParams.set("invite",record.id);
+  return url.href;
+}
+
+function save(){
+  try{localStorage.setItem(storageKey,JSON.stringify({records,base:baseEl.value,suffix:suffixEl.value}));}catch(e){}
+}
+
+function render(){
+  countEl.textContent=records.length+" 人";
+  if(!records.length){listEl.innerHTML='<div class="empty">请先输入姓名并生成链接</div>';return;}
+  listEl.innerHTML="";
+  records.forEach(record=>{
+    const url=buildUrl(record);
+    const item=document.createElement("div"); item.className="item";
+    const person=document.createElement("div"); person.className="person";
+    person.append(document.createTextNode(record.name+(record.suffix?" "+record.suffix:"")));
+    const small=document.createElement("small"); small.textContent=record.id; person.appendChild(small);
+    const urlEl=document.createElement("div"); urlEl.className="url"; urlEl.textContent=url;
+    const button=document.createElement("button"); button.className="copy"; button.type="button"; button.textContent="复制链接";
+    button.addEventListener("click",()=>copyText(url,record.name+"的邀请链接已复制"));
+    item.append(person,urlEl,button); listEl.appendChild(item);
+  });
+}
+
+async function copyText(text,message){
+  try{await navigator.clipboard.writeText(text);notify(message);}catch(e){notify("复制失败，请手动选中链接");}
+}
+
+document.getElementById("generate").addEventListener("click",()=>{
+  const parsed=parseNames();
+  if(!parsed.length){notify("请先输入至少一个姓名");return;}
+  records=parsed; save(); render(); notify("已生成 "+records.length+" 条专属链接");
+});
+
+document.getElementById("copyAll").addEventListener("click",()=>{
+  if(!records.length){notify("还没有可复制的链接");return;}
+  const text=records.map(r=>r.name+(r.suffix?" "+r.suffix:"")+"\n"+buildUrl(r)).join("\n\n");
+  copyText(text,"全部邀请链接已复制");
+});
+
+document.getElementById("download").addEventListener("click",()=>{
+  if(!records.length){notify("还没有可导出的名单");return;}
+  const rows=[["姓名","称谓","专属编号","邀请链接"],...records.map(r=>[r.name,r.suffix,r.id,buildUrl(r)])];
+  const csv="\ufeff"+rows.map(row=>row.map(cell=>'"'+String(cell).replace(/"/g,'""')+'"').join(",")).join("\r\n");
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+  a.download="东方太极养生堂-专属邀请名单.csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+});
+
+document.getElementById("clear").addEventListener("click",()=>{
+  if(!confirm("只清空当前浏览器中保存的邀请名单，是否继续？")) return;
+  records=[]; namesEl.value=""; try{localStorage.removeItem(storageKey);}catch(e){} render(); notify("本机名单已清空");
+});
+
+try{
+  const saved=JSON.parse(localStorage.getItem(storageKey)||"null");
+  if(saved){records=Array.isArray(saved.records)?saved.records:[];baseEl.value=saved.base||baseEl.value;suffixEl.value=saved.suffix??suffixEl.value;namesEl.value=records.map(r=>r.name+(r.suffix!==suffixEl.value?"，"+r.suffix:"")).join("\n");}
+}catch(e){}
+render();
+</script>
+</body>
+</html>
