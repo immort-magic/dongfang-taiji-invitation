@@ -96,7 +96,10 @@ function notify(message){
 }
 
 function makeId(index){
-  return "DF"+Date.now().toString(36).toUpperCase()+String(index+1).padStart(3,"0");
+  const bytes=new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  const random=Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("").toUpperCase();
+  return "DF-"+random+"-"+String(index+1).padStart(3,"0");
 }
 
 function parseNames(){

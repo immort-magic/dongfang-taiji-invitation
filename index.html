@@ -210,6 +210,9 @@ html{scroll-behavior:smooth}
 .rsvp-state{
   margin-top:12px;text-align:center;font-size:12px;color:#efd18b;min-height:18px;
 }
+.rsvp-state.success{color:#fff0ad;font-weight:700}
+.rsvp-state.error{color:#ffd0c7}
+.btn:disabled,.modal-actions button:disabled{cursor:wait;opacity:.68}
 .backtop{
   position:fixed;right:max(14px,calc((100vw - 430px)/2 + 14px));bottom:18px;
   z-index:28;width:42px;height:42px;border-radius:50%;
@@ -381,9 +384,9 @@ html{scroll-behavior:smooth}
   <div class="modal-card">
     <div class="modal-mark">☯</div>
     <h3 id="rsvpTitle">登记赴约信息</h3>
-    <p>将打开飞书赴约登记表，姓名、称谓和赴约状态已自动填写。<br>在表单中点击“提交”后，邀请方即可查看记录。</p>
+    <p id="rsvpDescription">确认后将直接登记赴约，无需填写任何内容。<br>登记结果仅邀请方可以查看。</p>
     <div class="modal-actions">
-      <button id="rsvpYes" class="yes" type="button">打开登记表</button>
+      <button id="rsvpYes" class="yes" type="button">确认赴约</button>
       <button id="rsvpLater" class="no" type="button">稍后决定</button>
     </div>
   </div>
@@ -445,6 +448,7 @@ const params = new URLSearchParams(location.search);
 const guest = params.get("guest");
 const suffix = params.get("suffix");
 const inviteId = params.get("invite");
+const RSVP_API_URL = "https://dongfang-taiji-rsvp.pages.dev/rsvp";
 if(guest){
   const el=document.getElementById("guestName");
   if(el) el.textContent=guest;
@@ -454,18 +458,44 @@ if(params.has("suffix")){
   if(el) el.textContent=suffix||"";
 }
 
-function buildRsvpFormUrl(){
-  const url=new URL("https://icndkdfnybk8.feishu.cn/share/base/form/shrcnuZjaUyRbygogaQkUORCfHd");
-  const currentGuest=guest||document.getElementById("guestName")?.innerText.trim()||"尊敬的贵宾";
+function getRsvpPayload(){
+  const currentGuest=guest||document.getElementById("guestName")?.innerText.trim()||"";
   const currentSuffix=params.has("suffix") ? (suffix||"") : (document.querySelector('[data-key="guestSuffix"]')?.innerText.trim()||"");
-  const formSuffix=["先生","女士","老师","不显示"].includes(currentSuffix) ? currentSuffix : "不显示";
-  const currentInviteId=inviteId||("PUBLIC-"+Date.now().toString(36).toUpperCase());
-  url.searchParams.set("prefill_被邀请人姓名",currentGuest);
-  url.searchParams.set("prefill_称谓",formSuffix);
-  url.searchParams.set("prefill_赴约状态","已赴约");
-  url.searchParams.set("prefill_邀请编号",currentInviteId);
-  url.searchParams.set("hide_邀请编号","1");
-  return url.href;
+  return {guest:currentGuest,suffix:currentSuffix,inviteId};
+}
+
+function setRsvpState(message,type=""){
+  const el=document.getElementById("rsvpState");
+  if(!el) return;
+  el.textContent=message;
+  el.classList.remove("success","error");
+  if(type) el.classList.add(type);
+}
+
+async function submitRsvp(){
+  const payload=getRsvpPayload();
+  if(!payload.inviteId || !payload.guest){
+    throw new Error("请使用邀请方发送的专属邀请链接进行登记。");
+  }
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),15000);
+  try{
+    const response=await fetch(RSVP_API_URL,{
+      method:"POST",
+      headers:{"content-type":"application/json"},
+      body:JSON.stringify(payload),
+      signal:controller.signal
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok || !result.ok) throw new Error(result.message||"登记暂时失败，请稍后重试。");
+    try{localStorage.setItem("dongfang-taiji-rsvp-"+payload.inviteId,"success");}catch(e){}
+    return result;
+  }catch(error){
+    if(error?.name==="AbortError") throw new Error("登记超时，请检查网络后重试。");
+    throw error;
+  }finally{
+    clearTimeout(timer);
+  }
 }
 tick(); setInterval(tick,1000);
 // ===== 互动增强 =====
@@ -479,6 +509,7 @@ tick(); setInterval(tick,1000);
   const rsvpYes=document.getElementById("rsvpYes");
   const rsvpLater=document.getElementById("rsvpLater");
   const rsvpState=document.getElementById("rsvpState");
+  const rsvpDescription=document.getElementById("rsvpDescription");
   const blessingBtn=document.getElementById("blessingBtn");
   const taiji=document.querySelector(".taiji");
   const invitee=document.querySelector(".invitee-card");
@@ -537,16 +568,44 @@ tick(); setInterval(tick,1000);
     invitee.classList.toggle("active");
   });
 
-  rsvpBtn?.addEventListener("click",()=>modal?.classList.add("show"));
+  try{
+    if(inviteId && localStorage.getItem("dongfang-taiji-rsvp-"+inviteId)==="success"){
+      setRsvpState("已登记赴约，感谢您的确认。","success");
+      if(rsvpBtn) rsvpBtn.textContent="已登记赴约";
+    }
+  }catch(e){}
+
+  rsvpBtn?.addEventListener("click",()=>{
+    if(!inviteId || !guest){
+      setRsvpState("请使用邀请方发送的专属邀请链接进行登记。","error");
+      return;
+    }
+    if(rsvpDescription) rsvpDescription.innerHTML="确认后将直接为 <strong>"+guest.replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[c]))+"</strong> 登记赴约。<br>无需填写任何内容，结果仅邀请方可见。";
+    modal?.classList.add("show");
+  });
   rsvpLater?.addEventListener("click",()=>modal?.classList.remove("show"));
   modal?.addEventListener("click",(e)=>{ if(e.target===modal) modal.classList.remove("show"); });
 
-  rsvpYes?.addEventListener("click",()=>{
-    modal?.classList.remove("show");
-    if(rsvpState) rsvpState.textContent="请在飞书表单中点击提交，记录才会生效。";
-    const r=rsvpBtn?.getBoundingClientRect();
-    if(r) burst(r.left+r.width/2,r.top+r.height/2,20);
-    setTimeout(()=>{ location.href=buildRsvpFormUrl(); },260);
+  rsvpYes?.addEventListener("click",async()=>{
+    rsvpYes.disabled=true;
+    rsvpLater.disabled=true;
+    rsvpYes.textContent="正在登记…";
+    setRsvpState("正在登记，请稍候…");
+    try{
+      const result=await submitRsvp();
+      modal?.classList.remove("show");
+      setRsvpState(result.already?"您已登记过赴约，无需重复操作。":"已登记赴约，感谢您的确认。","success");
+      if(rsvpBtn) rsvpBtn.textContent="已登记赴约";
+      const r=rsvpBtn?.getBoundingClientRect();
+      if(r) burst(r.left+r.width/2,r.top+r.height/2,20);
+    }catch(error){
+      modal?.classList.remove("show");
+      setRsvpState(error?.message||"登记暂时失败，请稍后重试。","error");
+    }finally{
+      rsvpYes.disabled=false;
+      rsvpLater.disabled=false;
+      rsvpYes.textContent="确认赴约";
+    }
   });
 
   blessingBtn?.addEventListener("click",()=>{

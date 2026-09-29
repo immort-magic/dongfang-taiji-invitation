@@ -1,0 +1,10 @@
+name = "dongfang-taiji-rsvp"
+main = "src/index.js"
+compatibility_date = "2026-09-28"
+workers_dev = true
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dongfang-taiji-rsvp"
+database_id = "242249a2-10a0-4725-a6fc-af493127f233"
